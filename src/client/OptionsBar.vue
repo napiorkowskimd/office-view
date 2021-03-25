@@ -1,11 +1,10 @@
 <template>
   <div class="optionsBar">
-    <button
-      id="connect-btn"
-      :disabled="connectBtnDisabled"
-      @click="connectToggle()"
-    >
-      <span>{{ connectBtnText }}</span>
+    <button id="connect-btn" @click="$emit('connectToggle')">
+      <span>{{ running ? "Disconnect" : "Connect" }}</span>
+    </button>
+    <button id="record-btn" @click="$emit('recordToggle')" v-if="running">
+      <span>{{ recording ? "Stop/Save" : "Record" }}</span>
     </button>
     <span>Room ID: {{ roomID }} </span>
     <span>Sig: {{ sigStatus }} </span>
@@ -41,11 +40,11 @@ var formatNumber = num =>
 export default {
   name: "OptionsBar",
   props: {
-    connectBtnText: {
-      type: String,
-      default: "Connect"
+    running: {
+      type: Boolean,
+      default: false
     },
-    connectBtnDisabled: {
+    recording: {
       type: Boolean,
       default: false
     },
@@ -82,7 +81,7 @@ export default {
       this.$emit("connectToggle");
     }
   },
-  emits: ["submit:lowBitrate", "submit:crisp", "connect"]
+  emits: ["submit:lowBitrate", "submit:crisp", "connectToggle", "recordToggle"]
 };
 </script>
 

@@ -8,9 +8,10 @@
       :bitrate="bitrate"
       :sigStatus="sigStatus"
       :peerStatus="peerStatus"
-      :connectBtnDisabled="isChangingState"
-      :connectBtnText="webrtcActive ? 'Disconnect' : 'Connect'"
+      :running="webrtcActive"
+      :recording="recordingActive"
       @connectToggle="webrtcActive = !webrtcActive"
+      @recordToggle="recordingActive = !recordingActive"
       @submit:lowBitrate="lowBitrate = $event"
       @submit:crisp="crisp = $event"
     ></OptionsBar>
@@ -18,6 +19,7 @@
       ref="player"
       :roomID="roomID"
       :active="webrtcActive"
+      :record="recordingActive"
       :maxBitrate="lowBitrate ? 50 : 0"
       :crisp="crisp"
       @update:resolution="resolution = $event"
@@ -25,6 +27,7 @@
       @update:bitrate="bitrate = $event"
       @update:signalling-status="sigStatus = $event"
       @update:peer-status="peerStatus = $event"
+      @recordingEnded="onRecordingEnded($event)"
     ></WebRTCVideo>
   </div>
 </template>
@@ -58,8 +61,26 @@ export default {
       crisp: false,
       lowBitrate: false,
       webrtcActive: false,
+      recordingActive: false,
       isChangingState: false
     };
+  },
+  methods: {
+    onRecordingEnded(data) {
+      this.recordingActive = false;
+      if (data === undefined || data.size === 0) return;
+      const url = window.URL.createObjectURL(data);
+      const a = document.createElement("a");
+      a.style.display = "none";
+      a.href = url;
+      a.download = "recordedStream.webm";
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      }, 100);
+    }
   }
 };
 </script>

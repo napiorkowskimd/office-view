@@ -6,7 +6,49 @@
 
 <script>
 import Signalling from "@/common/signalling.js";
-import { StatEstimator } from "@/common/utils.js";
+import { singleShotWaitForEvent, StatEstimator } from "@/common/utils.js";
+
+class RecordingSession {
+  constructor(stream) {
+    this.recorder = new MediaRecorder(stream, {
+      mimeType: 'video/webm;codecs="vp9"'
+    });
+    this.recordedBlobs = [];
+    this.recorder.ondataavailable = this._handleData.bind(this);
+  }
+
+  start() {
+    console.log("Start recording");
+    this.recorder.start();
+  }
+
+  async abort() {
+    console.log("abort recording");
+    if (this.recorder.state !== "inactive") {
+      this.recorder.stop();
+    }
+    await singleShotWaitForEvent(this.recorder, "stop");
+    this.recordedBlobs = [];
+  }
+
+  async stop() {
+    console.log("Stop recording");
+    if (this.recorder.state !== "inactive") {
+      this.recorder.stop();
+    }
+    await singleShotWaitForEvent(this.recorder, "stop");
+    const recorded = new Blob(this.recordedBlobs, { type: "video/webm" });
+    this.recordedBlobs = [];
+    return recorded;
+  }
+
+  _handleData(event) {
+    console.log("Recording progress");
+    if (event.data && event.data.size > 0) {
+      this.recordedBlobs.push(event.data);
+    }
+  }
+}
 
 function createPeerConnection(sig) {
   var pc = new RTCPeerConnection();
@@ -76,6 +118,7 @@ export default {
   props: {
     roomID: String,
     active: Boolean,
+    record: Boolean,
     maxBitrate: Number,
     crisp: Boolean
   },
@@ -84,7 +127,8 @@ export default {
     "update:bitrate",
     "update:signalling-status",
     "update:peer-status",
-    "update:resolution"
+    "update:resolution",
+    "recordingEnded"
   ],
   data() {
     return {};
@@ -100,7 +144,8 @@ export default {
       sig,
       framerateEstimator,
       bitrateEstimator,
-      videoElement: undefined
+      videoElement: undefined,
+      recordingSession: undefined
     };
   },
   mounted() {
@@ -114,6 +159,27 @@ export default {
         this.connect();
       } else {
         this.disconnect();
+      }
+    },
+    record(val) {
+      if (val) {
+        if (!this.videoElement || !this.videoElement.srcObject) {
+          this.$emit("recordingEnded", undefined);
+          return;
+        }
+        this.recordingSession = new RecordingSession(
+          this.videoElement.srcObject
+        );
+        this.recordingSession.start();
+      } else {
+        if (!this.recordingSession) {
+          this.$emit("recordingEnded", undefined);
+          return;
+        }
+        this.recordingSession.stop().then(recordedData => {
+          this.$emit("recordingEnded", recordedData);
+          this.recordingSession = undefined;
+        });
       }
     },
     maxBitrate(bitrate) {
@@ -140,9 +206,14 @@ export default {
     disconnect() {
       this.sig.close();
       this.pc.close();
-      this.resetEstimators()
+      this.resetEstimators();
       this.pc = createPeerConnection(this.sig);
       mountPeerConnection(this.pc, this);
+      if (this.recordingSession) {
+        this.recordingSession.abort();
+        this.recordingSession = undefined;
+        this.$emit("recordingEnded", undefined);
+      }
       this.$emit("update:peer-status", "none");
     },
     resetEstimators() {
@@ -153,8 +224,7 @@ export default {
       this.$emit("update:resolution", "0x0");
     },
     async updateStats() {
-      if (this.pc.getTransceivers().length === 0)
-        return;
+      if (this.pc.getTransceivers().length === 0) return;
       var receiver = this.pc.getTransceivers()[0].receiver;
       var stats = await receiver.getStats();
       var inboundVideoStat;
