@@ -140,13 +140,21 @@ export default {
     disconnect() {
       this.sig.close();
       this.pc.close();
-      this.bitrateEstimator.reset();
-      this.framerateEstimator.reset();
+      this.resetEstimators()
       this.pc = createPeerConnection(this.sig);
       mountPeerConnection(this.pc, this);
       this.$emit("update:peer-status", "none");
     },
+    resetEstimators() {
+      this.bitrateEstimator.reset();
+      this.framerateEstimator.reset();
+      this.$emit("update:bitrate", 0);
+      this.$emit("update:framerate", 0);
+      this.$emit("update:resolution", "0x0");
+    },
     async updateStats() {
+      if (this.pc.getTransceivers().length === 0)
+        return;
       var receiver = this.pc.getTransceivers()[0].receiver;
       var stats = await receiver.getStats();
       var inboundVideoStat;

@@ -29,6 +29,19 @@ export class StatEstimator {
     }
 
     this._end = [timestamp, value];
+    if (this._start[0] > this._end[0]) {
+      // Reset if the interval has a negative duration
+      // This can happen if track is reset, and starts to use
+      // different clock reference
+      this.reset();
+      return;
+    }
+
+    if (this._start[1] > this._end[1]) {
+      // Values should be non-decreasing
+      this.reset();
+      return;
+    }
     let interval = this._end[0] - this._start[0];
     let count = this._end[1] - this._start[1];
     let estimate = (1000 * count) / interval;
@@ -41,7 +54,6 @@ export class StatEstimator {
       this._start = this._nextStart;
       this._nextStart = undefined;
     }
-
     return estimate;
   }
 }
